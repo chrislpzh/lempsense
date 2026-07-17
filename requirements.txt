@@ -1,0 +1,39 @@
+#
+#DEPENDENCIAS E INSTRUCCIONES DE EJECUCION
+#
+#
+#
+#
+# Actualizar pip:
+#       python -m pip install --upgrade pip
+#
+# Instalar todas las dependencias:
+#       python -m pip install -r requirements.txt
+#
+# Alternativamente, instalarlas de manera individual:
+#       python -m pip install opencv-python
+#       python -m pip install numpy
+#       python -m pip install Pillow
+#       python -m pip install edge-tts
+#       python -m pip install pyttsx3
+#       python -m pip install vosk
+#       python -m pip install sounddevice
+#
+# Comprobar antes de ejecutar:
+#       - La carpeta modelo_vosk debe estar en la raiz del proyecto.
+#       - Las fotografias deben estar dentro de referencias.
+#       - La camara y el microfono deben estar conectados.
+#       - Para Karla Neural se necesita conexion a internet. Sin conexion
+#         se utiliza automaticamente una voz femenina local de Windows.
+#
+# Ejecutar Lempsense:
+#       python main.py
+#
+
+opencv-python
+numpy
+Pillow
+edge-tts
+pyttsx3
+vosk
+sounddevice

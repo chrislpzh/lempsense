@@ -1,0 +1,30 @@
+# Entornos virtuales de Python
+.venv/
+venv/
+env/
+
+# Archivos generados por Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuración local de editores e IDE
+.idea/
+.vscode/
+
+# Capturas generadas durante las pruebas
+capturas/
+
+# Archivos temporales y registros
+*.log
+*.tmp
+*.temp
+~$*
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos internos de revisión
+.docx_review/

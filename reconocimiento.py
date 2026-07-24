@@ -8,7 +8,11 @@ class ReconocedorBilletes:
         self.carpeta_referencias = carpeta_referencias
         self.debug = debug
 
-        self.orb = cv2.ORB_create(nfeatures=1500)
+        # Un cuadro con una persona y fondo contiene muchos puntos de interés.
+        # Reservar más características evita que todos se gasten fuera del
+        # billete cuando este ocupa una porción pequeña de la imagen.
+        self.orb = cv2.ORB_create(nfeatures=1800, fastThreshold=12)
+        self.ancho_maximo_referencia = 800
 
         self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
 
@@ -22,13 +26,13 @@ class ReconocedorBilletes:
         # un resultado. Con knnMatch + ratio test este número es MUCHO más bajo
         # que con el método viejo (antes 50, ahora arrancamos en 15).
         # Si reconoce cosas falsas, subilo. Si no reconoce nada, bajalo.
-        self.score_minimo = 18
+        self.score_minimo = 14
 
         # No basta con encontrar puntos parecidos: deben conservar la misma
         # geometría que tienen en el billete de referencia. Esto evita que
         # vigas, cortinas, rostros u otros fondos produzcan un falso positivo.
-        self.inliers_minimos = 10
-        self.proporcion_inliers_minima = 0.45
+        self.inliers_minimos = 8
+        self.proporcion_inliers_minima = 0.35
 
         self.cargar_referencias()
 
@@ -48,6 +52,19 @@ class ReconocedorBilletes:
 
             if imagen is None:
                 continue
+
+            # Las fotografías originales rondan los 1600 px de ancho, pero
+            # un billete sostenido suele ocupar solo 250-500 px en la webcam.
+            # Normalizar la referencia mantiene ambas escalas dentro del rango
+            # en el que ORB puede relacionarlas de forma confiable.
+            alto_original, ancho_original = imagen.shape[:2]
+            if ancho_original > self.ancho_maximo_referencia:
+                escala = self.ancho_maximo_referencia / float(ancho_original)
+                imagen = cv2.resize(
+                    imagen,
+                    (self.ancho_maximo_referencia, int(alto_original * escala)),
+                    interpolation=cv2.INTER_AREA,
+                )
 
             denominacion = self.obtener_denominacion_desde_nombre(archivo)
 
@@ -135,14 +152,20 @@ class ReconocedorBilletes:
 
             score = len(buenas)
 
-            inliers, proporcion_inliers, geometria_valida = (
-                self.validar_geometria(
-                    buenas,
-                    puntos_captura,
-                    referencia,
-                    imagen_bgr.shape,
+            # La homografía es una de las operaciones más costosas. Si una
+            # referencia ni siquiera alcanza el score mínimo, no puede ganar,
+            # por lo que no vale la pena calcularla.
+            if score >= self.score_minimo:
+                inliers, proporcion_inliers, geometria_valida = (
+                    self.validar_geometria(
+                        buenas,
+                        puntos_captura,
+                        referencia,
+                        imagen_bgr.shape,
+                    )
                 )
-            )
+            else:
+                inliers, proporcion_inliers, geometria_valida = 0, 0.0, False
 
             distancia_promedio = (
                 np.mean([m.distance for m in buenas])
@@ -182,7 +205,16 @@ class ReconocedorBilletes:
         )
 
         mejor = mejores_resultados[0]
-        segundo = mejores_resultados[1] if len(mejores_resultados) > 1 else None
+        # Hay varias fotos de cada valor. Una segunda foto del mismo billete
+        # confirma el resultado; no debe reducir su confianza como si fuera una
+        # denominación rival.
+        segundo = next(
+            (
+                resultado for resultado in mejores_resultados[1:]
+                if resultado["denominacion"] != mejor["denominacion"]
+            ),
+            None,
+        )
 
         score_mejor = mejor["score"]
         score_segundo = segundo["score"] if segundo else 0
@@ -267,7 +299,7 @@ class ReconocedorBilletes:
         geometria_valida = (
             inliers >= self.inliers_minimos
             and proporcion >= self.proporcion_inliers_minima
-            and 0.03 <= proporcion_area <= 0.95
+            and 0.01 <= proporcion_area <= 0.95
             and cv2.isContourConvex(contorno)
         )
         return inliers, proporcion, geometria_valida

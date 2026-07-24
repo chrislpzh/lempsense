@@ -1,4 +1,6 @@
 import os
+import queue
+import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -26,7 +28,9 @@ class LempiraApp:
         self.ventana.resizable(False, False)
         self.centrar_ventana(940, 900)
 
-        self.reconocedor = ReconocedorBilletes("referencias")
+        # La salida de depuración genera 64 líneas por análisis y también
+        # ralentiza la aplicación, especialmente desde una terminal.
+        self.reconocedor = ReconocedorBilletes("referencias", debug=False)
         self.voz = Voz()
         self.comandos_voz = None
         self.camara = None
@@ -37,7 +41,12 @@ class LempiraApp:
         self.modo_automatico = True
         self.ultimo_analisis = 0
         self.intervalo_analisis = 0.7
-        self.confirmaciones_necesarias = 3
+        # Mantiene detalle suficiente cuando el billete está en la mano y
+        # ocupa menos espacio que cuando se coloca sobre el escritorio.
+        self.ancho_maximo_analisis = 1280
+        self.analisis_en_curso = False
+        self.resultados_analisis = queue.Queue()
+        self.confirmaciones_necesarias = 2
         self.ausencias_necesarias = 3
 
         self.denominacion_anterior = None
@@ -402,6 +411,7 @@ class LempiraApp:
             imagen_tk = ImageTk.PhotoImage(Image.fromarray(rgb))
             self.label_video.imgtk = imagen_tk
             self.label_video.configure(image=imagen_tk, text="")
+            self.procesar_resultados_analisis()
             self.detectar_automaticamente()
         self.ventana.after(15, self.actualizar_video)
 
@@ -410,14 +420,57 @@ class LempiraApp:
             self.RECONOCER, self.CONTAR, self.CAMBIO_PAGO
         ):
             return
-        ahora = time.time()
+        if self.analisis_en_curso:
+            return
+        ahora = time.monotonic()
         if ahora - self.ultimo_analisis < self.intervalo_analisis:
             return
         self.ultimo_analisis = ahora
-        denominacion, confianza, mensaje, detalle = self.reconocedor.reconocer(
-            self.frame_actual
+        frame_analisis = self.preparar_frame_analisis(self.frame_actual)
+        self.analisis_en_curso = True
+        threading.Thread(
+            target=self.analizar_frame_en_segundo_plano,
+            args=(frame_analisis,),
+            daemon=True,
+        ).start()
+
+    def preparar_frame_analisis(self, frame):
+        """Reduce el trabajo de ORB sin modificar el video mostrado."""
+        alto, ancho = frame.shape[:2]
+        if ancho <= self.ancho_maximo_analisis:
+            return frame.copy()
+        escala = self.ancho_maximo_analisis / float(ancho)
+        return cv2.resize(
+            frame,
+            (self.ancho_maximo_analisis, int(alto * escala)),
+            interpolation=cv2.INTER_AREA,
         )
 
+    def analizar_frame_en_segundo_plano(self, frame):
+        """Ejecuta OpenCV fuera del hilo que refresca la interfaz."""
+        try:
+            resultado = self.reconocedor.reconocer(frame)
+            self.resultados_analisis.put((resultado, None))
+        except Exception as error:
+            self.resultados_analisis.put((None, error))
+
+    def procesar_resultados_analisis(self):
+        try:
+            resultado, error = self.resultados_analisis.get_nowait()
+        except queue.Empty:
+            return
+
+        self.analisis_en_curso = False
+        if error is not None:
+            print("Error durante el reconocimiento:", error)
+            return
+        if self.estado not in (self.RECONOCER, self.CONTAR, self.CAMBIO_PAGO):
+            return
+
+        denominacion, confianza, mensaje, detalle = resultado
+        self.procesar_deteccion(denominacion, confianza, mensaje, detalle)
+
+    def procesar_deteccion(self, denominacion, confianza, mensaje, detalle):
         if denominacion is None or confianza < 75:
             self.denominacion_anterior = None
             self.conteo_estable = 0

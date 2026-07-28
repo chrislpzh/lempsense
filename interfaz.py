@@ -3,7 +3,7 @@ import queue
 import threading
 import time
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 
 import cv2
 from PIL import Image, ImageTk
@@ -21,12 +21,35 @@ class LempiraApp:
     CAMBIO_CONFIRMAR = "CAMBIO_CONFIRMAR"
     CAMBIO_PAGO = "CAMBIO_PAGO"
 
+    # Paleta de colores centralizada para mantener consistencia visual
+    COLOR_BG = "#f2f4f8"
+    COLOR_HEADER = "#1d4ed8"
+    COLOR_SUBTITLE = "#64748b"
+    COLOR_CARD_BG = "#ffffff"
+    COLOR_CARD_BORDER = "#e2e8f0"
+    COLOR_MODO_BG = "#e0e7ff"
+    COLOR_MODO_FG = "#3730a3"
+    COLOR_VIDEO_BG = "#0f172a"
+    COLOR_VIDEO_BORDER = "#1d4ed8"
+    COLOR_TEXT_GRAY = "#475569"
+    COLOR_AZUL = "#2563eb"
+    COLOR_VERDE = "#16a34a"
+    COLOR_NARANJA = "#d97706"
+    COLOR_ROJO = "#dc2626"
+    COLOR_PRIMARY_BTN = "#2563eb"
+    COLOR_PRIMARY_BTN_HOVER = "#1d4ed8"
+    COLOR_SECONDARY_BTN = "#e2e8f0"
+    COLOR_SECONDARY_BTN_HOVER = "#cbd5e1"
+    COLOR_DANGER_BTN = "#fee2e2"
+    COLOR_DANGER_BTN_FG = "#b91c1c"
+
     def __init__(self):
         self.ventana = tk.Tk()
         self.ventana.title("Lempsense")
-        self.ventana.geometry("940x900")
+        self.ventana.geometry("980x920")
         self.ventana.resizable(False, False)
-        self.centrar_ventana(940, 900)
+        self.ventana.configure(bg=self.COLOR_BG)
+        self.centrar_ventana(980, 920)
 
         # La salida de depuración genera 64 líneas por análisis y también
         # ralentiza la aplicación, especialmente desde una terminal.
@@ -59,6 +82,7 @@ class LempiraApp:
         self.ultimo_mensaje_hablado = ""
 
         self.crear_carpetas()
+        self.configurar_estilos()
         self.crear_interfaz()
         self.configurar_teclas()
         self.iniciar_comandos_voz()
@@ -79,112 +103,238 @@ class LempiraApp:
         os.makedirs("capturas", exist_ok=True)
         os.makedirs("referencias", exist_ok=True)
 
+    # ------------------------------------------------------------------
+    # Estilos
+    # ------------------------------------------------------------------
+    def configurar_estilos(self):
+        """Define los estilos ttk reutilizados por toda la interfaz."""
+        estilo = ttk.Style(self.ventana)
+        # 'clam' es el único theme base que respeta bien los colores
+        # personalizados de fondo/texto en botones en Windows y Linux.
+        try:
+            estilo.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        fuente_base = ("Segoe UI", 11)
+        fuente_boton = ("Segoe UI", 11, "bold")
+
+        estilo.configure(
+            "Primary.TButton",
+            font=fuente_boton,
+            foreground="white",
+            background=self.COLOR_PRIMARY_BTN,
+            borderwidth=0,
+            focusthickness=0,
+            padding=(10, 12),
+        )
+        estilo.map(
+            "Primary.TButton",
+            background=[("active", self.COLOR_PRIMARY_BTN_HOVER),
+                        ("pressed", self.COLOR_PRIMARY_BTN_HOVER)],
+        )
+
+        estilo.configure(
+            "Secondary.TButton",
+            font=fuente_base,
+            foreground="#1e293b",
+            background=self.COLOR_SECONDARY_BTN,
+            borderwidth=0,
+            focusthickness=0,
+            padding=(8, 9),
+        )
+        estilo.map(
+            "Secondary.TButton",
+            background=[("active", self.COLOR_SECONDARY_BTN_HOVER),
+                        ("pressed", self.COLOR_SECONDARY_BTN_HOVER)],
+        )
+
+        estilo.configure(
+            "Danger.TButton",
+            font=fuente_base,
+            foreground=self.COLOR_DANGER_BTN_FG,
+            background=self.COLOR_DANGER_BTN,
+            borderwidth=0,
+            focusthickness=0,
+            padding=(8, 9),
+        )
+        estilo.map(
+            "Danger.TButton",
+            background=[("active", "#fecaca"), ("pressed", "#fecaca")],
+        )
+
+        estilo.configure(
+            "Card.TFrame",
+            background=self.COLOR_CARD_BG,
+            relief="flat",
+        )
+        estilo.configure(
+            "Fondo.TFrame",
+            background=self.COLOR_BG,
+        )
+        estilo.configure(
+            "Precio.TEntry",
+            padding=6,
+            fieldbackground="white",
+        )
+
+    def tarjeta(self, contenedor, **kwargs):
+        """Crea un panel tipo 'card' con borde suave, para agrupar contenido."""
+        borde = tk.Frame(contenedor, bg=self.COLOR_CARD_BORDER)
+        interior = tk.Frame(borde, bg=self.COLOR_CARD_BG, **kwargs)
+        interior.pack(fill="both", expand=True, padx=1, pady=1)
+        return borde, interior
+
+    # ------------------------------------------------------------------
+    # Interfaz
+    # ------------------------------------------------------------------
     def crear_interfaz(self):
+        contenedor = tk.Frame(self.ventana, bg=self.COLOR_BG)
+        contenedor.pack(fill="both", expand=True, padx=24, pady=18)
+
+        # ---- Encabezado ----
+        encabezado = tk.Frame(contenedor, bg=self.COLOR_BG)
+        encabezado.pack(fill="x", pady=(0, 4))
         tk.Label(
-            self.ventana, text="Lempsense", font=("Arial", 28, "bold")
-        ).pack(pady=6)
+            encabezado, text="Lempsense", font=("Segoe UI", 30, "bold"),
+            bg=self.COLOR_BG, fg=self.COLOR_HEADER
+        ).pack()
         tk.Label(
-            self.ventana,
+            encabezado,
             text="Asistente auditivo para reconocimiento de billetes hondureños",
-            font=("Arial", 13),
-        ).pack(pady=2)
+            font=("Segoe UI", 12), bg=self.COLOR_BG, fg=self.COLOR_SUBTITLE
+        ).pack(pady=(2, 0))
 
         self.label_estado_voz = tk.Label(
-            self.ventana, text="Comandos de voz: iniciando...",
-            font=("Arial", 10), fg="gray"
+            encabezado, text="●  Comandos de voz: iniciando...",
+            font=("Segoe UI", 10, "bold"), bg=self.COLOR_BG, fg="gray"
         )
-        self.label_estado_voz.pack(pady=2)
+        self.label_estado_voz.pack(pady=(6, 0))
 
+        # ---- Indicador de modo (estilo "pill") ----
+        pill = tk.Frame(contenedor, bg=self.COLOR_MODO_BG)
+        pill.pack(pady=10)
         self.label_modo = tk.Label(
-            self.ventana, text="Modo: menú principal",
-            font=("Arial", 14, "bold"), fg="#315a8a"
+            pill, text="Modo: menú principal",
+            font=("Segoe UI", 13, "bold"),
+            bg=self.COLOR_MODO_BG, fg=self.COLOR_MODO_FG,
+            padx=18, pady=6,
         )
-        self.label_modo.pack(pady=3)
+        self.label_modo.pack()
 
+        # ---- Video ----
+        borde_video = tk.Frame(contenedor, bg=self.COLOR_VIDEO_BORDER)
+        borde_video.pack(pady=8)
         self.frame_video = tk.Frame(
-            self.ventana, width=640, height=440, bg="black"
+            borde_video, width=640, height=440, bg=self.COLOR_VIDEO_BG
         )
-        self.frame_video.pack(pady=7)
+        self.frame_video.pack(padx=3, pady=3)
         self.frame_video.pack_propagate(False)
         self.label_video = tk.Label(
             self.frame_video,
-            bg="black",
-            fg="white",
+            bg=self.COLOR_VIDEO_BG,
+            fg="#94a3b8",
             text="La cámara se activará al elegir una función",
-            font=("Arial", 14),
+            font=("Segoe UI", 13),
         )
         self.label_video.pack(fill="both", expand=True)
 
+        # ---- Panel de resultado ----
+        borde_resultado, panel_resultado = self.tarjeta(contenedor)
+        borde_resultado.pack(fill="x", pady=(12, 8))
         self.label_resultado = tk.Label(
-            self.ventana, text="Elija una opción",
-            font=("Arial", 19, "bold"), fg="blue", wraplength=860
+            panel_resultado, text="Elija una opción",
+            font=("Segoe UI", 20, "bold"), fg=self.COLOR_AZUL,
+            bg=self.COLOR_CARD_BG, wraplength=880, pady=10
         )
-        self.label_resultado.pack(pady=4)
+        self.label_resultado.pack(fill="x", padx=16)
         self.label_detalle = tk.Label(
-            self.ventana, text="Reconocer billete | Contar dinero | Calcular cambio",
-            font=("Arial", 12), wraplength=860
+            panel_resultado, text="Reconocer billete | Contar dinero | Calcular cambio",
+            font=("Segoe UI", 11), bg=self.COLOR_CARD_BG, fg=self.COLOR_TEXT_GRAY,
+            wraplength=880
         )
-        self.label_detalle.pack(pady=2)
+        self.label_detalle.pack(fill="x", padx=16, pady=(0, 12))
 
-        opciones = tk.Frame(self.ventana)
-        opciones.pack(pady=8)
-        tk.Button(
-            opciones, text="Reconocer billete", font=("Arial", 12, "bold"),
-            width=19, command=self.iniciar_modo_reconocer
-        ).grid(row=0, column=0, padx=5, pady=3)
-        tk.Button(
-            opciones, text="Contar dinero", font=("Arial", 12, "bold"),
-            width=19, command=self.iniciar_modo_contar
-        ).grid(row=0, column=1, padx=5, pady=3)
-        tk.Button(
-            opciones, text="Calcular cambio", font=("Arial", 12, "bold"),
-            width=19, command=self.iniciar_modo_cambio
-        ).grid(row=0, column=2, padx=5, pady=3)
-
-        acciones = tk.Frame(self.ventana)
-        acciones.pack(pady=3)
-        tk.Button(
-            acciones, text="Menú principal", font=("Arial", 11),
-            width=16, command=self.presentar_menu
-        ).grid(row=0, column=0, padx=4, pady=3)
-        tk.Button(
-            acciones, text="Eliminar último", font=("Arial", 11),
-            width=16, command=self.eliminar_ultimo
-        ).grid(row=0, column=1, padx=4, pady=3)
-        tk.Button(
-            acciones, text="Repetir", font=("Arial", 11),
-            width=13, command=self.repetir_resultado
-        ).grid(row=0, column=2, padx=4, pady=3)
-        tk.Button(
-            acciones, text="Terminar / calcular", font=("Arial", 11),
-            width=18, command=self.terminar_accion
-        ).grid(row=0, column=3, padx=4, pady=3)
-        tk.Button(
-            acciones, text="Ayuda", font=("Arial", 11),
-            width=10, command=self.mostrar_ayuda
-        ).grid(row=0, column=4, padx=4, pady=3)
-        tk.Button(
-            acciones, text="Salir", font=("Arial", 11),
-            width=10, command=self.cerrar
-        ).grid(row=0, column=5, padx=4, pady=3)
-
-        precio = tk.Frame(self.ventana)
-        precio.pack(pady=4)
-        tk.Label(precio, text="Precio de compra:", font=("Arial", 11)).grid(
-            row=0, column=0, padx=4
-        )
-        self.entrada_precio = tk.Entry(precio, width=12, font=("Arial", 12))
-        self.entrada_precio.grid(row=0, column=1, padx=4)
-        tk.Button(
-            precio, text="Aceptar precio", font=("Arial", 10),
-            command=self.aceptar_precio_escrito
-        ).grid(row=0, column=2, padx=4)
-
+        # ---- Opciones principales ----
         tk.Label(
-            self.ventana,
+            contenedor, text="OPCIONES PRINCIPALES", font=("Segoe UI", 9, "bold"),
+            bg=self.COLOR_BG, fg=self.COLOR_SUBTITLE
+        ).pack(pady=(6, 4), anchor="w")
+        opciones = tk.Frame(contenedor, bg=self.COLOR_BG)
+        opciones.pack(fill="x", pady=(0, 6))
+        opciones.grid_columnconfigure((0, 1, 2), weight=1, uniform="op")
+
+        ttk.Button(
+            opciones, text="Reconocer billete", style="Primary.TButton",
+            command=self.iniciar_modo_reconocer
+        ).grid(row=0, column=0, padx=5, pady=3, sticky="ew")
+        ttk.Button(
+            opciones, text="Contar dinero", style="Primary.TButton",
+            command=self.iniciar_modo_contar
+        ).grid(row=0, column=1, padx=5, pady=3, sticky="ew")
+        ttk.Button(
+            opciones, text="Calcular cambio", style="Primary.TButton",
+            command=self.iniciar_modo_cambio
+        ).grid(row=0, column=2, padx=5, pady=3, sticky="ew")
+
+        # ---- Acciones secundarias ----
+        tk.Label(
+            contenedor, text="ACCIONES", font=("Segoe UI", 9, "bold"),
+            bg=self.COLOR_BG, fg=self.COLOR_SUBTITLE
+        ).pack(pady=(10, 4), anchor="w")
+        acciones = tk.Frame(contenedor, bg=self.COLOR_BG)
+        acciones.pack(fill="x")
+        acciones.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1, uniform="ac")
+
+        ttk.Button(
+            acciones, text="Menú principal", style="Secondary.TButton",
+            command=self.presentar_menu
+        ).grid(row=0, column=0, padx=3, pady=3, sticky="ew")
+        ttk.Button(
+            acciones, text="Eliminar último", style="Secondary.TButton",
+            command=self.eliminar_ultimo
+        ).grid(row=0, column=1, padx=3, pady=3, sticky="ew")
+        ttk.Button(
+            acciones, text="Repetir", style="Secondary.TButton",
+            command=self.repetir_resultado
+        ).grid(row=0, column=2, padx=3, pady=3, sticky="ew")
+        ttk.Button(
+            acciones, text="Terminar / calcular", style="Secondary.TButton",
+            command=self.terminar_accion
+        ).grid(row=0, column=3, padx=3, pady=3, sticky="ew")
+        ttk.Button(
+            acciones, text="Ayuda", style="Secondary.TButton",
+            command=self.mostrar_ayuda
+        ).grid(row=0, column=4, padx=3, pady=3, sticky="ew")
+        ttk.Button(
+            acciones, text="Salir", style="Danger.TButton",
+            command=self.cerrar
+        ).grid(row=0, column=5, padx=3, pady=3, sticky="ew")
+
+        # ---- Precio ----
+        borde_precio, panel_precio = self.tarjeta(contenedor)
+        borde_precio.pack(fill="x", pady=(14, 4))
+        precio = tk.Frame(panel_precio, bg=self.COLOR_CARD_BG)
+        precio.pack(pady=10)
+        tk.Label(
+            precio, text="Precio de compra:", font=("Segoe UI", 11),
+            bg=self.COLOR_CARD_BG, fg="#1e293b"
+        ).grid(row=0, column=0, padx=(4, 8))
+        self.entrada_precio = ttk.Entry(
+            precio, width=14, font=("Segoe UI", 12), style="Precio.TEntry"
+        )
+        self.entrada_precio.grid(row=0, column=1, padx=4)
+        ttk.Button(
+            precio, text="Aceptar precio", style="Primary.TButton",
+            command=self.aceptar_precio_escrito
+        ).grid(row=0, column=2, padx=(8, 4))
+
+        # ---- Pie de página ----
+        tk.Label(
+            contenedor,
             text="En cualquier momento puede decir: ayuda, repetir, cancelar o menú principal",
-            font=("Arial", 10), fg="gray"
-        ).pack(pady=3)
+            font=("Segoe UI", 9, "italic"), bg=self.COLOR_BG, fg=self.COLOR_SUBTITLE
+        ).pack(pady=(10, 0))
 
     def configurar_teclas(self):
         self.ventana.bind("<Return>", lambda event: self.aceptar_precio_escrito())
@@ -201,15 +351,15 @@ class LempiraApp:
             self.comandos_voz = ComandosVoz(callback, "modelo_vosk")
             self.comandos_voz.iniciar()
             self.label_estado_voz.config(
-                text="Comandos de voz: activos", fg="green"
+                text="●  Comandos de voz: activos", fg=self.COLOR_VERDE
             )
         except FileNotFoundError:
             self.label_estado_voz.config(
-                text="Comandos de voz: modelo no encontrado", fg="orange"
+                text="●  Comandos de voz: modelo no encontrado", fg=self.COLOR_NARANJA
             )
         except Exception as error:
             self.label_estado_voz.config(
-                text="Comandos de voz: no disponibles", fg="red"
+                text="●  Comandos de voz: no disponibles", fg=self.COLOR_ROJO
             )
             print("No se pudieron iniciar los comandos de voz:", error)
 
@@ -223,7 +373,7 @@ class LempiraApp:
         # estuviera diciendo en ese momento.
         self.voz.detener()
         self.label_estado_voz.config(
-            text=f"Comando escuchado: {texto}", fg="green"
+            text=f"●  Comando escuchado: {texto}", fg=self.COLOR_VERDE
         )
 
         if comando == "RECONOCER_BILLETE":
@@ -280,7 +430,7 @@ class LempiraApp:
         self.precio_compra = None
         self.reiniciar_deteccion()
         self.label_modo.config(text="Modo: menú principal")
-        self.label_resultado.config(text="Elija una opción", fg="blue")
+        self.label_resultado.config(text="Elija una opción", fg=self.COLOR_AZUL)
         self.label_detalle.config(
             text="Reconocer billete | Contar dinero | Calcular cambio"
         )
@@ -299,7 +449,7 @@ class LempiraApp:
         self.billetes = []
         self.reiniciar_deteccion()
         self.label_modo.config(text="Modo: reconocer billete")
-        self.label_resultado.config(text="Buscando billete...", fg="orange")
+        self.label_resultado.config(text="Buscando billete...", fg=self.COLOR_NARANJA)
         self.label_detalle.config(text="Coloque un billete frente a la cámara")
         if self.asegurar_camara():
             self.decir(
@@ -311,7 +461,7 @@ class LempiraApp:
         self.billetes = []
         self.reiniciar_deteccion()
         self.label_modo.config(text="Modo: contar dinero")
-        self.label_resultado.config(text="Total: 0 lempiras", fg="blue")
+        self.label_resultado.config(text="Total: 0 lempiras", fg=self.COLOR_AZUL)
         self.label_detalle.config(text="Coloque el primer billete")
         if self.asegurar_camara():
             self.decir(
@@ -330,7 +480,7 @@ class LempiraApp:
         self.estado = self.CAMBIO_PRECIO
         self.precio_compra = None
         self.label_modo.config(text="Modo: calcular cambio")
-        self.label_resultado.config(text="Diga el precio de la compra", fg="blue")
+        self.label_resultado.config(text="Diga el precio de la compra", fg=self.COLOR_AZUL)
         self.label_detalle.config(
             text="También puede escribir el precio y presionar Aceptar precio"
         )
@@ -347,7 +497,7 @@ class LempiraApp:
         self.precio_compra = numero
         self.estado = self.CAMBIO_CONFIRMAR
         self.label_resultado.config(
-            text=f"Precio: {numero} lempiras. ¿Confirmar?", fg="blue"
+            text=f"Precio: {numero} lempiras. ¿Confirmar?", fg=self.COLOR_AZUL
         )
         self.label_detalle.config(text="Diga confirmar o corregir")
         self.decir(
@@ -370,7 +520,7 @@ class LempiraApp:
         self.estado = self.CAMBIO_PAGO
         self.billetes = []
         self.reiniciar_deteccion()
-        self.label_resultado.config(text="Pago registrado: 0 lempiras", fg="blue")
+        self.label_resultado.config(text="Pago registrado: 0 lempiras", fg=self.COLOR_AZUL)
         self.label_detalle.config(text="Coloque el primer billete del pago")
         if self.asegurar_camara():
             self.decir(
@@ -505,7 +655,7 @@ class LempiraApp:
     def registrar_billete(self, valor, confianza, mensaje):
         if self.estado == self.RECONOCER:
             texto = f"{mensaje}. Retire el billete para reconocer otro."
-            self.label_resultado.config(text=mensaje, fg="green")
+            self.label_resultado.config(text=mensaje, fg=self.COLOR_VERDE)
             self.label_detalle.config(
                 text=f"Confianza: {confianza}%. Retire el billete para continuar."
             )
@@ -518,7 +668,7 @@ class LempiraApp:
                 "Retire el billete y coloque el siguiente."
             )
             self.label_resultado.config(
-                text=f"{tipo}: {total} lempiras", fg="green"
+                text=f"{tipo}: {total} lempiras", fg=self.COLOR_VERDE
             )
             self.label_detalle.config(
                 text=f"Último billete: {valor}. Cantidad de billetes: {len(self.billetes)}"
@@ -532,7 +682,7 @@ class LempiraApp:
             texto = f"Total: {sum(self.billetes)} lempiras"
         else:
             texto = f"Pago registrado: {sum(self.billetes)} lempiras"
-        self.label_resultado.config(text=texto, fg="orange")
+        self.label_resultado.config(text=texto, fg=self.COLOR_NARANJA)
         if not self.billete_registrado:
             self.label_detalle.config(text="Coloque un billete frente a la cámara")
 
@@ -564,7 +714,7 @@ class LempiraApp:
         eliminado = self.billetes.pop()
         total = sum(self.billetes)
         self.reiniciar_deteccion()
-        self.label_resultado.config(text=f"Total: {total} lempiras", fg="blue")
+        self.label_resultado.config(text=f"Total: {total} lempiras", fg=self.COLOR_AZUL)
         self.decir(
             f"Se eliminó el billete de {eliminado} lempiras. "
             f"El nuevo total es {total} lempiras."
@@ -576,7 +726,7 @@ class LempiraApp:
         total = sum(self.billetes)
         cantidad = len(self.billetes)
         self.label_resultado.config(
-            text=f"Conteo final: {total} lempiras", fg="green"
+            text=f"Conteo final: {total} lempiras", fg=self.COLOR_VERDE
         )
         self.decir(
             f"Conteo finalizado. Registró {cantidad} billetes. "
@@ -594,7 +744,7 @@ class LempiraApp:
             resultado = "El pago está completo. No debe recibir cambio."
         else:
             resultado = f"Faltan {-diferencia} lempiras para completar el pago."
-        self.label_resultado.config(text=resultado, fg="green")
+        self.label_resultado.config(text=resultado, fg=self.COLOR_VERDE)
         self.label_detalle.config(
             text=f"Precio: {self.precio_compra} | Entregado: {pago}"
         )

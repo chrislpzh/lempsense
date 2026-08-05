@@ -206,6 +206,14 @@ class LempiraApp:
         interior.pack(fill="both", expand=True, padx=1, pady=1)
         return borde, interior
 
+    def alternar_mute(self):
+
+        self.voz.alternar_mute()
+
+        if self.voz.esta_muteado():
+            self.btn_mute.config(text="🔇 Voz")
+        else:
+            self.btn_mute.config(text="🔊 Voz")
     # ------------------------------------------------------------------
     # Interfaz
     # ------------------------------------------------------------------
@@ -345,6 +353,14 @@ class LempiraApp:
         )
         self.btn_ayuda.pack(**opciones_boton)
 
+        self.btn_mute = ttk.Button(
+    acciones,
+    text="🔊 Voz",
+    style="Secondary.TButton",
+    command=self.alternar_mute
+)
+        self.btn_mute.pack(**opciones_boton)
+
         self.btn_salir = ttk.Button(
             acciones, text="Salir", style="Danger.TButton",
             command=self.cerrar
@@ -378,6 +394,7 @@ class LempiraApp:
         )
         self.label_pie.pack(pady=(4, 0))
 
+    
         # Aplica la visibilidad inicial (arrancamos en modo menú).
         self.actualizar_controles_dinamicos()
 
@@ -913,3 +930,4 @@ class LempiraApp:
     def ejecutar(self):
         self.ventana.protocol("WM_DELETE_WINDOW", self.cerrar)
         self.ventana.mainloop()
+

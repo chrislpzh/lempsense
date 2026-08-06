@@ -24,8 +24,11 @@ class Voz:
         self.alias_activo = None
         self.engine_activo = None
         self.proceso_activo = None
+        self.muteado = False
 
     def hablar(self, texto):
+        if self.muteado:
+            return
         print("VOZ:", texto)
 
         # Una instrucción nueva reemplaza inmediatamente cualquier frase
@@ -68,6 +71,17 @@ class Voz:
                 proceso.terminate()
             except Exception:
                 pass
+
+    def alternar_mute(self):
+        self.muteado = not self.muteado
+
+        if self.muteado:
+            # Silenciar cancela la locución actual. La interfaz conserva el
+            # último mensaje para reproducirlo completo al reactivar la voz.
+            self.detener()
+
+    def esta_muteado(self):
+        return self.muteado
 
     def sonido_salida(self):
         """Dos golpes cortos tipo 'tac-tac' al cerrar el sistema."""

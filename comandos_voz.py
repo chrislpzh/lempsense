@@ -17,11 +17,13 @@ class ComandosVoz:
         self.sample_rate = sample_rate
 
         self.activo = False
+        self.suspendido = False
         self.pausado_hasta = 0
 
         self.cola_audio = queue.Queue()
         self.modelo = None
         self.reconocedor = None
+        self.reconocedor_lock = threading.Lock()
         self.hilo = None
 
     def iniciar(self):
@@ -54,9 +56,38 @@ class ComandosVoz:
         """
         self.pausado_hasta = time.time() + segundos
 
+    def suspender(self):
+        """Descarta audio pendiente y bloquea nuevas capturas para Vosk."""
+        self.suspendido = True
+        self._vaciar_cola_audio()
+        with self.reconocedor_lock:
+            if self.reconocedor is not None:
+                self.reconocedor.Reset()
+
+    def reanudar(self):
+        """Reinicia Vosk antes de aceptar audio nuevo del micrófono."""
+        self._vaciar_cola_audio()
+        with self.reconocedor_lock:
+            if self.reconocedor is not None:
+                self.reconocedor.Reset()
+            # Ignora cualquier final de palabra pronunciada justo al reactivar.
+            self.pausado_hasta = time.time() + 0.5
+            self.suspendido = False
+
+    def _vaciar_cola_audio(self):
+        while True:
+            try:
+                self.cola_audio.get_nowait()
+            except queue.Empty:
+                break
+
     def _callback_audio(self, indata, frames, tiempo, status):
         if status:
             print("Estado del micrófono:", status)
+
+        # Durante una exposición no se conserva ni se acumula lo hablado.
+        if self.suspendido:
+            return
 
         self.cola_audio.put(bytes(indata))
 
@@ -77,23 +108,30 @@ class ComandosVoz:
                     if data is None:
                         break
 
-                    if time.time() < self.pausado_hasta:
-                        self.reconocedor.AcceptWaveform(data)
-                        continue
+                    with self.reconocedor_lock:
+                        if self.suspendido:
+                            continue
 
-                    if self.reconocedor.AcceptWaveform(data):
-                        resultado = json.loads(self.reconocedor.Result())
-                        texto = resultado.get("text", "").strip().lower()
+                        if time.time() < self.pausado_hasta:
+                            self.reconocedor.AcceptWaveform(data)
+                            continue
 
-                        if texto:
-                            print("Texto escuchado:", texto)
+                        resultado_completo = self.reconocedor.AcceptWaveform(data)
+                        if resultado_completo:
+                            resultado = json.loads(self.reconocedor.Result())
+                            texto = resultado.get("text", "").strip().lower()
+                        else:
+                            texto = ""
 
-                        comando = self._interpretar_comando(texto)
+                    if texto:
+                        print("Texto escuchado:", texto)
 
-                        if comando:
-                            self.callback(comando, texto)
-                        elif texto:
-                            self.callback("NO_ENTENDIDO", texto)
+                    comando = self._interpretar_comando(texto)
+
+                    if comando:
+                        self.callback(comando, texto)
+                    elif texto:
+                        self.callback("NO_ENTENDIDO", texto)
 
         except Exception as error:
             print("Error en reconocimiento de voz:", error)

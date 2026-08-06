@@ -76,7 +76,9 @@ class Voz:
         self.muteado = not self.muteado
 
         if self.muteado:
-         self.detener()   # Detiene inmediatamente cualquier voz
+            # Silenciar cancela la locución actual. La interfaz conserva el
+            # último mensaje para reproducirlo completo al reactivar la voz.
+            self.detener()
 
     def esta_muteado(self):
         return self.muteado

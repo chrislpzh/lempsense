@@ -207,13 +207,26 @@ class LempiraApp:
         return borde, interior
 
     def alternar_mute(self):
-
         self.voz.alternar_mute()
 
         if self.voz.esta_muteado():
             self.btn_mute.config(text="🔇 Voz")
+            if self.comandos_voz is not None:
+                self.comandos_voz.suspender()
+                self.label_estado_voz.config(
+                    text="●  Voz y comandos pausados", fg=self.COLOR_NARANJA
+                )
         else:
             self.btn_mute.config(text="🔊 Voz")
+            if self.comandos_voz is not None:
+                self.comandos_voz.reanudar()
+                self.label_estado_voz.config(
+                    text="●  Comandos de voz: activos", fg=self.COLOR_VERDE
+                )
+            # Al reactivar la salida, recupera el mensaje vigente completo.
+            # Reiniciarlo es más claro que continuar a mitad de una frase.
+            self.decir(self.resultado_actual)
+
     # ------------------------------------------------------------------
     # Interfaz
     # ------------------------------------------------------------------
@@ -454,6 +467,11 @@ class LempiraApp:
             print("No se pudieron iniciar los comandos de voz:", error)
 
     def procesar_comando_voz(self, comando, texto):
+        # El modo silencio también suspende los comandos. Esta segunda
+        # comprobación descarta callbacks que ya estaban en cola al silenciar.
+        if self.voz.esta_muteado():
+            return
+
         # Mientras habla, el micrófono puede captar fragmentos del altavoz.
         # Solo una orden válida debe interrumpir; el ruido no reconocido se ignora.
         if comando == "NO_ENTENDIDO" and self.voz.esta_hablando:
@@ -503,7 +521,7 @@ class LempiraApp:
 
     def decir(self, texto, permitir_interrupcion=False):
         self.resultado_actual = texto
-        if self.comandos_voz is not None:
+        if self.comandos_voz is not None and not self.voz.esta_muteado():
             # La bienvenida usa frases que no coinciden literalmente con los
             # comandos, por lo que puede mantener el micrófono disponible. En
             # las demás respuestas se conserva la protección contra autoescucha.
@@ -668,7 +686,29 @@ class LempiraApp:
         ret, frame = self.camara.read()
         if ret:
             self.frame_actual = frame
-            mostrado = cv2.resize(frame, (640, 340))
+            # Llena el marco sin deformar la imagen de la cámara. Cuando la
+            # proporción del video es distinta, se recortan los bordes de forma
+            # centrada en lugar de estirar el frame.
+            alto, ancho = frame.shape[:2]
+            ancho_destino, alto_destino = 640, 340
+            escala = max(
+                ancho_destino / float(ancho),
+                alto_destino / float(alto),
+            )
+            nuevo_ancho = int(round(ancho * escala))
+            nuevo_alto = int(round(alto * escala))
+            redimensionado = cv2.resize(
+                frame,
+                (nuevo_ancho, nuevo_alto),
+                interpolation=cv2.INTER_AREA
+                if escala < 1 else cv2.INTER_LINEAR,
+            )
+            inicio_x = (nuevo_ancho - ancho_destino) // 2
+            inicio_y = (nuevo_alto - alto_destino) // 2
+            mostrado = redimensionado[
+                inicio_y:inicio_y + alto_destino,
+                inicio_x:inicio_x + ancho_destino,
+            ]
             rgb = cv2.cvtColor(mostrado, cv2.COLOR_BGR2RGB)
             imagen_tk = ImageTk.PhotoImage(Image.fromarray(rgb))
             self.label_video.imgtk = imagen_tk
